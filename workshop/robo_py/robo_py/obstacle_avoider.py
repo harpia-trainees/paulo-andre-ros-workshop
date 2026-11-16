@@ -28,10 +28,11 @@ class ObstacleAvoider(Node):
 
         # TODO 1: criar o publisher de 'cmd_vel' em self.pub, com fila de 10 mensagens.
         #   O tipo é TwistStamped se self.use_stamped for True, senão Twist.
-        self.pub = None
+        self.pub = self.create_publisher(TwistStamped if self.use_stamped else Twist, 'cmd_vel', 10)
 
         # TODO 2: assinar 'scan' (LaserScan) com QoS de sensor (qos_profile_sensor_data),
         #   chamando self.on_scan a cada mensagem. Guarde em self.sub.
+        self.sub = self.create_subscription(LaserScan, 'scan', self.on_scan, qos_profile_sensor_data)
 
     def on_scan(self, scan):
         half_cone = math.radians(self.cone_deg)
@@ -43,10 +44,19 @@ class ObstacleAvoider(Node):
         #   - o lidar do TurtleBot3 vai de 0 a 2*pi: normalize com math.atan2(math.sin(a), math.cos(a))
         #   - leitura válida: math.isfinite(r) e scan.range_min <= r <= scan.range_max
         #   Dica: for i, r in enumerate(scan.ranges):
+        for i, r in enumerate(scan.ranges):
+            angle = scan.angle_min + i * scan.angle_increment
+            angle = math.atan2(math.sin(angle), math.cos(angle))  # normaliza para [-pi, pi]
+            if abs(angle) <= half_cone and math.isfinite(r) and scan.range_min <= r <= scan.range_max:
+                min_dist = min(min_dist, r)
 
         cmd = Twist()
         # TODO 4: se min_dist < self.safe_distance, girar no lugar (cmd.angular.z);
         #   senão, andar para frente (cmd.linear.x).
+        if min_dist < self.safe_distance:
+            cmd.angular.z = self.turn_speed
+        else:
+            cmd.linear.x = self.max_speed
 
         self.publish(cmd)
 
